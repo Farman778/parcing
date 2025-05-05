@@ -5,8 +5,8 @@ import time
 from datetime import datetime
 
 # Telegram bot token və chat ID
-BOT_TOKEN = "BURAYA_BOT_TOKEN_YAZ"
-CHAT_ID = "BURAYA_CHAT_ID_YAZ"
+BOT_TOKEN = ""
+CHAT_ID =""
 
 def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
