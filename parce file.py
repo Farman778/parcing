@@ -1,55 +1,66 @@
 import requests
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
+import time
+from datetime import datetime
 
-# Axtarış linki (nümunə link - burada konkret velosiped bölməsi olmalıdır)
-url = "https://tap.az/elanlar/nəqliyyat/velosipedler"
+# Telegram bot token və chat ID
+BOT_TOKEN = "BURAYA_BOT_TOKEN_YAZ"
+CHAT_ID = "BURAYA_CHAT_ID_YAZ"
 
-# Sayta insan kimi sorğu atmaq üçün header əlavə edirik
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-}
+def send_telegram_message(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    response = requests.post(url, data=data)
+    return response
 
-# Sorğunu göndəririk
-response = requests.get(url, headers=headers)
-response.encoding = 'utf-8'
+def scrape_and_send():
+    url = "https://tap.az/elanlar/nəqliyyat/velosipedler"
+    headers = {
+        "User-Agent": "Mozilla/5.0 ..."
+    }
+    response = requests.get(url, headers=headers)
+    response.encoding = 'utf-8'
 
-# HTML-i parse edirik
-soup = BeautifulSoup(response.text, 'html.parser')
+    soup = BeautifulSoup(response.text, 'html.parser')
+    elanlar = soup.find_all('div', class_='products-i')
 
-# Elanları tapırıq
-elanlar = soup.find_all('div', class_='products-i')
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Velosipedler"
+    ws.append(["Ad", "Qiymət (AZN)", "Link"])
 
-# Excel faylı üçün kitab və səhifə yaradırıq
-wb = Workbook()
-ws = wb.active
-ws.title = "Velosipedler"
+    minimum_qiymet = 200
+    maksimum_qiymet = 350
 
-# Sütun başlıqları
-ws.append(["Ad", "Qiymət (AZN)", "Link"])
+    for elan in elanlar:
+        try:
+            ad = elan.find('div', class_='products-i-title').text.strip()
+            qiymet_text = elan.find('div', class_='products-i-price').text.strip()
+            qiymet_text = qiymet_text.replace("AZN", "").replace(" ", "").replace(",", ".")
+            qiymet = float(qiymet_text)
+            link = "https://tap.az" + elan.find('a', href=True)['href']
 
-# Qiymət aralığı
-minimum_qiymet = 200
-maksimum_qiymet = 350
+            if minimum_qiymet <= qiymet <= maksimum_qiymet:
+                ws.append([ad, qiymet, link])
+                mesaj = f"<b>{ad}</b>\nQiymət: {qiymet} AZN\nLink: {link}"
+                send_telegram_message(mesaj)
 
-for elan in elanlar:
-    try:
-        ad = elan.find('div', class_='products-i-title').text.strip()
-        qiymet_text = elan.find('div', class_='products-i-price').text.strip()
-        qiymet_text = qiymet_text.replace("AZN", "").replace(" ", "")
-        link = "https://tap.az" + elan.find('a', href=True)['href']
+        except Exception as e:
+            print(f"Xəta baş verdi: {e}")
+            continue
 
-        qiymet = int(qiymet_text)
+    now = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    filename = f"velosipedler_{now}.xlsx"
+    wb.save(filename)
+    print(f"{now} - Fayl saxlandı və elanlar Telegrama göndərildi.")
 
-        if minimum_qiymet <= qiymet <= maksimum_qiymet:
-            # Excel faylına yazırıq
-            ws.append([ad, qiymet, link])
-
-    except Exception as e:
-        # Problem olsa keçir
-        continue
-
-# Excel faylını saxlayırıq
-wb.save("velosipedler.xlsx")
-
-print("200-350 AZN arası velosipedlər 'velosipedler.xlsx' faylına yazıldı!")
+# Sonsuz dövr - hər 12 saatdan bir işləyəcək
+while True:
+    scrape_and_send()
+    print("12 saat gözlənilir...")
+    time.sleep(43200)  # 12 saat = 43200 saniyə
